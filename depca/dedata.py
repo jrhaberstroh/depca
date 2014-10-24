@@ -141,6 +141,31 @@ class dEData():
             self.sc_file.close()
             self.sc_file = None
 
+    def InitStats_hdf(self):
+        raise NotImplementedError("Initializing stats not implemented. Just use raw sidechain data for now.")
+        # TODO: Rewrite this to use the AvgAndCorrelateSidechains that does NOT have the index for chromophore
+        # Perform the computation
+        sc_file = self.GetSidechain_hdf(1)
+        try:
+            sc_ds_tij = sc_file[time_h5tag]
+            corr_iab, Eavg_ia = sc.AvgAndCorrelateSidechains(sc_ds_tij)
+            sc_file.close()
+        except:
+            sc_file.close()
+            print("Error: {}".format(sys.exc_info()[0]))
+            raise
+
+        # Store the computation
+        corr_file = h5py.File(h5stats, 'w')
+        try:
+            corr_ds = corr_file.create_dataset(h5corrtag, data=corr_iab)
+            Eavg_ds = corr_file.create_dataset(h5eavtag, data=Eavg_ia)
+            corr_file.close()
+        except:
+            corr_file.close()
+            print("Error: {}".format(sys.exc_info()[0]))
+            raise
+        
     def GetStats_hdf(self):
         if not self.stat_file:
             self.stat_file = h5py.File(self.h5stats)
@@ -150,11 +175,13 @@ class dEData():
             self.stat_file.close()
             self.stat_file = None
 
-    def GetModes_hdf(self):
+    def InitPCA_hdf(self):
+        raise NotImplementedError("Initializing stats not implemented. Just use raw sidechain data for now.")
+    def GetPCA_hdf(self):
         if not self.pca_file:
             self.pca_file = h5py.File(self.pca_h5file)
         return self.pca_file[self.time_h5tag]
-    def CloseModes_hdf(self):
+    def ClosePCA_hdf(self):
         if self.pca_file:
             self.pca_file.close()
             self.pca_file = None
@@ -162,5 +189,5 @@ class dEData():
     def __exit__(self, type, value, traceback):
         self.CloseSidechain_hdf()
         self.CloseStats_hdf()
-        self.CloseModes_hdf()
+        self.ClosePCA_hdf()
 

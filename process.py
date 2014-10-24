@@ -18,28 +18,6 @@ def ComputeCorrelation():
         h5corrtag = config.get('sidechain','h5crtag')
         h5eavtag = config.get('sidechain','h5eavtag')
     
-    # Perform the computation
-    sc_file = h5py.File(sc_h5file)
-    try:
-        sc_ds_tij = sc_file[time_h5tag]
-        corr_iab, Eavg_ia = sc.AvgAndCorrelateSidechains(sc_ds_tij)
-        sc_file.close()
-    except:
-        sc_file.close()
-        print("Error: {}".format(sys.exc_info()[0]))
-        raise
-
-    # Store the computation
-    corr_file = h5py.File(h5stats, 'w')
-    try:
-        corr_ds = corr_file.create_dataset(h5corrtag, data=corr_iab)
-        Eavg_ds = corr_file.create_dataset(h5eavtag, data=Eavg_ia)
-        corr_file.close()
-    except:
-        corr_file.close()
-        print("Error: {}".format(sys.exc_info()[0]))
-        raise
-        
 
 def ComputePCA():
     with open('./f0postProcess.cfg') as fp:
@@ -73,10 +51,8 @@ def ComputePCA():
     
 
 if __name__ == '__main__':
-    with  dedata.dEData('./f0postProcess.cfg') as data:
-        data.InitSidechain_hdf()
-        data.ExamineSidechain_hdf()
-        dat = data.GetSidechain_hdf(1)
-        print dat.shape
-    #ComputeCorrelation()
-    #ComputePCA()
+    with dedata.dEData('./f0postProcess.cfg') as data:
+        #data.InitSidechain_hdf()
+        #data.ExamineSidechain_hdf()
+        data.InitStats_hdf()
+        #data.InitPCA_hdf()

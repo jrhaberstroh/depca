@@ -85,52 +85,35 @@ def ComputeModes(corr, sort=True):
 
 	All outputs are sorted by vi*impact_i, with pairings preserved
 	All eigenvectors are selected to have positive sum of components, and a factor of -1 is applied to those which do not.
-
 	"""
 	#print "Computing Eigenvalues..."
-	vi = []
-	wi = []
-	Ni = len(corr)
+        v,w = LA.eigh(corr[i])
+        w = w.transpose()
 
-	for i in xrange(Ni):
-		v,w = LA.eigh(corr[i])
-		w = w.transpose()
-
-		valmax = max(v)
-		cutpos = 0
-		vi.append(np.array(v[cutpos:]))
-		wi.append(np.array(w[cutpos:,:]))
-	vi = np.array(vi)
-	wi = np.array(wi)
-	
         # NOTE: impact will take the same sign as the eigenvector, which is allowed since eigenvectors are still e-vecs under scaling.
 	# impact is the mode-specific weighting factor to conserve energy under basis rotation
-	impact_i = []
-	for i in xrange(Ni):
-		impact = []
-		for v,wn in zip(vi[i], wi[i]):
-			#wn /= LA.norm(wn)
-			n_factor = sum(wn)
-			if (v < 0 and n_factor > 0) or (v > 0 and n_factor < 0):
-				wn *= -1
-				n_factor *= -1
-			#print n_factor
-			impact.append(n_factor)
-		impact_i.append(np.array(impact))
-	impact_i = np.array(impact_i)
+        impact = []
+        for vn,wn in zip(v, w):
+            #wn /= LA.norm(wn)
+            n_factor = sum(wn)
+            if (vn < 0 and n_factor > 0) or (vn > 0 and n_factor < 0):
+                wn *= -1
+                n_factor *= -1
+            #print n_factor
+            impact.append(n_factor)
 
 	# --------------------------SORT-------------------------------
         if sort:
-	    for i in xrange(Ni):
-		    wi_copy = deepcopy(wi[i])
-		    tup = zip(vi[i], impact_i[i], wi_copy)
-		    tup.sort(key=lambda x: x[0] * x[1] * x[1])
-		    for j in xrange(len(tup)):
-			    vi[i,j] = tup[j][0]
-			    impact_i[i,j] = tup[j][1]
-			    wi[i,j] = tup[j][2]
+	    w_copy = deepcopy(w)
+	    tup = zip(v, impact, w_copy)
+            # Sort as a group and assign back to the original variables
+	    tup.sort(key=lambda x: x[0] * x[1] * x[1])
+	    for j in xrange(len(tup)):
+	            v[j] = tup[j][0]
+	            impact[j] = tup[j][1]
+	            w[j] = tup[j][2]
 
-	return vi, wi, impact_i
+	return v, w, impact
 
 
 

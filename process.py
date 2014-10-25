@@ -5,7 +5,6 @@ import ConfigParser
 import numpy as np
 import iopro
 import sys
-import depca.dedata as dedata
 
 
     

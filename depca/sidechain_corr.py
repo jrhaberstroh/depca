@@ -87,7 +87,7 @@ def ComputeModes(corr, sort=True):
 	All eigenvectors are selected to have positive sum of components, and a factor of -1 is applied to those which do not.
 	"""
 	#print "Computing Eigenvalues..."
-        v,w = LA.eigh(corr[i])
+        v,w = LA.eigh(corr)
         w = w.transpose()
 
         # NOTE: impact will take the same sign as the eigenvector, which is allowed since eigenvectors are still e-vecs under scaling.

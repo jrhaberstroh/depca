@@ -1,8 +1,10 @@
+import numpy as np
 import h5py
 import ConfigParser
 import sys
 import iopro
 import depca.sidechain_corr as sc
+from numbapro import vectorize
 
 def dEhdf5_init(hdf_file, hdf_dsname, open_flag, Ncoarse=0, ntimes=0, dt_ps=None, chunktime=1000):
     with h5py.File(hdf_file,open_flag) as h5_out:
@@ -19,6 +21,59 @@ def dEhdf5_init(hdf_file, hdf_dsname, open_flag, Ncoarse=0, ntimes=0, dt_ps=None
         if dt_ps:
             ds.attrs['dt_unit'] = "picoseconds"
             ds.attrs['dt'] = dt_ps
+
+@vectorize(['float64(float64,float64)'], target='cpu')
+def ParallelSub64(a,b):
+    return a - b
+@vectorize(['float32(float32,float32)'], target='cpu')
+def ParallelSub32(a,b):
+    return a - b
+
+def PCARotate_hdf5(E_tj, corr, Eav_j, pca_h5ds):
+    print "Computing Modes..."
+    eigval_n, eigvec_nj, impact_n = sc.ComputeModes(corr)
+    print "Eigenvector dimension: {}".format(eigvec_nj.shape)
+    tf = E_tj.shape[0]
+    t0 = 0
+    Ncoarse = E_tj.shape[1]
+    # Perform chunk size computations
+    GB = float(1E9)
+    RAM_GB = .5
+    RAM_nfloat = RAM_GB * 1E9 / 8
+    RAM_ntimes = RAM_nfloat / Ncoarse
+    RAM_nchunk = int( np.ceil((tf - t0) / float(RAM_ntimes)) )
+    RAM_time_per_chunk = (tf - t0) / RAM_nchunk
+    print "Number of chunks needed: {} of {} GB each".format(RAM_nchunk, RAM_time_per_chunk * Ncoarse * 8 / GB)
+    RAM_return_times = (RAM_nchunk*RAM_time_per_chunk)
+    RAM_return_tot = (RAM_nchunk*RAM_time_per_chunk) * 8 * (Ncoarse)
+    print "Disk space needed for output data: {} GB".format(RAM_return_tot / GB)
+    for chunk_num in xrange(RAM_nchunk):
+        print "Chunk {}:".format(chunk_num+1),;sys.stdout.flush()
+        # Each chunk reads [t0_chunk, tf_chunk)
+        t0_chunk = (  chunk_num   * RAM_time_per_chunk) + t0
+        tf_chunk = ((chunk_num+1) * RAM_time_per_chunk) + t0
+        t0_return = t0_chunk - t0
+        tf_return = tf_chunk - t0
+        print "Loading chunk into RAM...",; sys.stdout.flush()
+        RAM_E_t_ij = E_tj[t0_chunk:tf_chunk,:]
+
+        # Build dE for chunk
+        print "Centering chunk with dataset's mean...",; sys.stdout.flush()
+        try:
+            RAM_dE_t_j = ParallelSub32( RAM_E_t_ij, Eav_j[:])
+        except TypeError:
+            try:
+                print "32 bit parallel float computation failed, trying 64 bit...",;sys.stdout.flush()
+                RAM_dE_t_j = ParallelSub64( RAM_E_t_ij, Eav_j[:])
+                print "Success."
+            except TypeError as e:
+                print "64 bit failed."
+                raise e
+        print "Rotating chunk...",; sys.stdout.flush()
+        RAM_dE_rotated = np.inner(RAM_dE_t_j, eigvec_nj.T)
+        print "Writing chunk...",; sys.stdout.flush()
+        pca_h5ds[t0_chunk:tf_chunk, :] = RAM_dE_rotated[:,:]
+        print 'Chunk {}  done'.format(chunk_num+1)
 
 # Python recipe 577096
 def query_yes_no(question, default="yes"):
@@ -70,11 +125,9 @@ class dEData():
             self.pca_h5file = config.get('sidechain','pcafile')
             self.Nsites = config.getint('sidechain','Nsites')
             self.csv_files = config.get('sidechain','csvfiles')
-
             self.sc_file = None
             self.stat_file = None
             self.pca_file= None
-
     def __enter__(self):
         self.sc_file = None
         self.stat_file = None
@@ -146,9 +199,6 @@ class dEData():
             self.sc_file = None
 
     def InitStats_hdf(self):
-        #raise NotImplementedError("Initializing stats not implemented. Just use raw sidechain data for now.")
-        # TODO: Rewrite this to use the AvgAndCorrelateSidechains that does NOT have the index for chromophore
-        # Perform the computation
         self.stat_file = h5py.File(self.h5stats, 'w')
         self.stat_file.close()
         for i in xrange(1,self.Nsites+1):
@@ -167,75 +217,16 @@ class dEData():
         if self.stat_file:
             self.stat_file.close()
             self.stat_file = None
-    
-    def ComputePCA():
-        self.pca_file = h5py.File(self.h5pca, 'w')
+
+    def InitPCA_hdf(self):
+        self.pca_file = h5py.File(self.pca_h5file, 'w')
         self.pca_file.close()
         for i in xrange(1, self.Nsites+1):
             sc_ds          = self.GetSidechain_hdf(i)
-            corr_ds,Eav_ds = self.GetStats_hdf(i)
-
+            Eav_ds,corr_ds = self.GetStats_hdf(i)
             self.pca_file = h5py.File(self.pca_h5file,'a')
-            slef.pca_file.create_dataset(append_index(self.h5timetag, i), sc_ds.shape)
-
-            print "Computing Modes..."
-            eigval_n, eigvec_nj, impact_n = sc.ComputeModes(corr)
-            print "Eigenvector dimension: {}".format(eigvec_nj.shape)
-    
-            #conv.ApplyPCA_hdf5(sc_ds, Eav_ij, eigvec_inj, pca_h5file, time_h5tag, site=0, overwrite=True)
-    
-            #GB = float(1E9)
-            #RAM_GB = .5
-            #RAM_nfloat = RAM_GB * 1E9 / 8
-            #RAM_ntimes = RAM_nfloat / Ncoarse
-            #RAM_nchunk = int( np.ceil((tf - t0) / float(RAM_ntimes)) )
-            #RAM_time_per_chunk = (tf - t0) / RAM_nchunk
-            #print "Number of chunks needed: {} of {} GB each".format(RAM_nchunk, RAM_time_per_chunk * Ncoarse * 8 / GB)
-            #RAM_return_times = (RAM_nchunk*RAM_time_per_chunk)
-            #RAM_return_tot = (RAM_nchunk*RAM_time_per_chunk) * 8 * (Ncoarse)
-            #print "Disk space needed for output data: {} GB".format(RAM_return_tot / GB)
-            #dE_t_j = np.zeros((RAM_time_per_chunk,Ncoarse))
-            #return_modes_nt = np.zeros((Ncoarse, RAM_return_times))
-            #dDEresidual_t = np.zeros((RAM_return_times))
-            #for chunk_num in xrange(RAM_nchunk):
-            #    print "Chunk {}:".format(chunk_num+1),;sys.stdout.flush()
-            #    # Each chunk reads [t0_chunk, tf_chunk)
-            #    t0_chunk = (  chunk_num   * RAM_time_per_chunk) + t0
-            #    tf_chunk = ((chunk_num+1) * RAM_time_per_chunk) + t0
-            #    t0_return = t0_chunk - t0
-            #    tf_return = tf_chunk - t0
-            #    print "Loading chunk into RAM...",; sys.stdout.flush()
-            #    RAM_E_t_ij = E_t_ij[t0_chunk:tf_chunk,site,:]
-
-            #    @vectorize(['float64(float64,float64)'], target='cpu')
-            #    def ParallelSub64(a,b):
-            #        return a - b
-            #    @vectorize(['float32(float32,float32)'], target='cpu')
-            #    def ParallelSub32(a,b):
-            #        return a - b
-            #    # Build dE for chunk
-            #    print "Computing chunk dE...",; sys.stdout.flush()
-            #    try:
-            #        RAM_dE_t_j = ParallelSub32( RAM_E_t_ij, E_avg_ij[site,:])
-            #    except TypeError:
-            #        try:
-            #            print "32 bit parallel float computation failed, trying 64 bit...",;sys.stdout.flush()
-            #            RAM_dE_t_j = ParallelSub64( RAM_E_t_ij, E_avg_ij[site,:])
-            #            print "Success."
-            #        except TypeError as e:
-            #            print "64 bit failed."
-            #            raise e
-            #    print "Rotating chunk...",; sys.stdout.flush()
-            #    RAM_dE_rotated = np.inner(RAM_dE_t_j[:,:], modeweight_inj[site,:,:].T)
-            #    print "Writing chunk...",; sys.stdout.flush()
-            #    with h5py.File(hdf_file, 'a') as pca_file:
-            #        pca_tin = pca_file[hdf_dsname]
-            #        pca_tin[t0_chunk:tf_chunk, site, :] = RAM_dE_rotated[:,:]
-            #    print 'Chunk {}  done'.format(chunk_num+1)
-            sc_file.close()
-            stat_file.close()
-    def InitPCA_hdf(self):
-        raise NotImplementedError("Initializing stats not implemented. Just use raw sidechain data for now.")
+            pca_ds_i = self.pca_file.create_dataset(append_index(self.time_h5tag, i), sc_ds.shape)
+            PCARotate_hdf5(sc_ds, corr_ds, Eav_ds, pca_ds_i)
     def GetPCA_hdf(self):
         if not self.pca_file:
             self.pca_file = h5py.File(self.pca_h5file)
@@ -243,7 +234,6 @@ class dEData():
     def ClosePCA_hdf(self):
         if self.pca_file:
             self.pca_file.close()
-            self.pca_file = None
 
     def __exit__(self, type, value, traceback):
         self.CloseSidechain_hdf()

@@ -2,6 +2,7 @@ import h5py
 import ConfigParser
 import sys
 import iopro
+import depca.sidechain_corr as sc
 
 def dEhdf5_init(hdf_file, hdf_dsname, open_flag, Ncoarse=0, ntimes=0, dt_ps=None, chunktime=1000):
     with h5py.File(hdf_file,open_flag) as h5_out:
@@ -52,6 +53,9 @@ def query_yes_no(question, default="yes"):
             sys.stdout.write("Please respond with 'yes' or 'no' "
                              "(or 'y' or 'n').\n")
 
+def append_index(dsname, index):
+    return dsname + "%d" % index
+
 
 class dEData():
     def __init__(self, config = './f0postProcess.cfg'):
@@ -89,7 +93,7 @@ class dEData():
             csv_files = f.readlines()
         print("Loading data from {} csv files...".format(len(csv_files)))
         
-        dset_tags = [self.time_h5tag + "%d" % i for i in xrange(1,Nsites+1)]
+        dset_tags = [append_index(self.time_h5tag, i) for i in xrange(1,Nsites+1)]
 
         # Load each CSV sequentially into an HDF file that is created on the first step
         first_file=True
@@ -135,41 +139,30 @@ class dEData():
     def GetSidechain_hdf(self, i):
         if not self.sc_file:
             self.sc_file  = h5py.File(self.sc_h5file)
-        return self.sc_file[self.time_h5tag + "%d" % i]
+        return self.sc_file[append_index(self.time_h5tag,i)]
     def CloseSidechain_hdf(self):
         if self.sc_file:
             self.sc_file.close()
             self.sc_file = None
 
     def InitStats_hdf(self):
-        raise NotImplementedError("Initializing stats not implemented. Just use raw sidechain data for now.")
+        #raise NotImplementedError("Initializing stats not implemented. Just use raw sidechain data for now.")
         # TODO: Rewrite this to use the AvgAndCorrelateSidechains that does NOT have the index for chromophore
         # Perform the computation
-        sc_file = self.GetSidechain_hdf(1)
-        try:
-            sc_ds_tij = sc_file[time_h5tag]
-            corr_iab, Eavg_ia = sc.AvgAndCorrelateSidechains(sc_ds_tij)
-            sc_file.close()
-        except:
-            sc_file.close()
-            print("Error: {}".format(sys.exc_info()[0]))
-            raise
-
-        # Store the computation
-        corr_file = h5py.File(h5stats, 'w')
-        try:
-            corr_ds = corr_file.create_dataset(h5corrtag, data=corr_iab)
-            Eavg_ds = corr_file.create_dataset(h5eavtag, data=Eavg_ia)
-            corr_file.close()
-        except:
-            corr_file.close()
-            print("Error: {}".format(sys.exc_info()[0]))
-            raise
-        
-    def GetStats_hdf(self):
+        self.stat_file = h5py.File(self.h5stats, 'w')
+        self.stat_file.close()
+        for i in xrange(1,self.Nsites+1):
+            print "Chromophore {}...".format(i)
+            ds_i = self.GetSidechain_hdf(i)
+            corr_iab, Eavg_ia = sc.ChunkCovariance(ds_i)
+            self.stat_file = h5py.File(self.h5stats, 'a')
+            self.stat_file.create_dataset(append_index(self.h5corrtag,i), data=corr_iab)
+            self.stat_file.create_dataset(append_index(self.h5eavtag ,i), data=Eavg_ia)
+            self.stat_file.close()
+    def GetStats_hdf(self, i):
         if not self.stat_file:
             self.stat_file = h5py.File(self.h5stats)
-        return self.stat_file[self.h5eavtag], self.stat_file[self.h5corrtag]
+        return self.stat_file[append_index(self.h5eavtag, i)], self.stat_file[append_index(self.h5corrtag,i)]
     def CloseStats_hdf(self):
         if self.stat_file:
             self.stat_file.close()

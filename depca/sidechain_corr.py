@@ -9,28 +9,32 @@ def BootstrapPCA(E_ti, Cov_ia, fraction=.1, resample=10):
     return 0
 
 
-def ChunkCorrelation(E_ti):
-    site_num = i + 1
-    print "Chromophore {}".format(site_num)
-    print "\tArray size: ({},{})".format(E_t_ia.shape[2], E_t_ia.shape[0])
+def ChunkCovariance(E_ti, t0=0, tf=None, t_stride=1):
+    if tf == None:
+        tf = E_ti.shape[0]
+    numFrames = min(tf-t0, E_ti.shape[0]-t0) / t_stride
+    tf = t0 + (numFrames * t_stride)
+    print "\tComputing covariance with times {} - {}, stride of {}".format(t0, tf, t_stride)
+    print "\tArray size: ({},{})".format( E_ti.shape[0], E_ti.shape[1] )
     max_floats = 4E9 / 8
-    max_times = max_floats / E_t_ia.shape[2]
-    dset_times = (fEnd-fStart) / fStride
+    max_times = max_floats / float(E_ti.shape[1])
+    dset_times = (tf-t0) / t_stride
     chunks = int(np.ceil(dset_times / max_times))
     chunk_size = dset_times/chunks
     print "\tNumber of chunks = {},".format(chunks),
-    print "Chunk size: {} [{:.1f} GB]".format(chunk_size, chunk_size*8*E_t_ia.shape[2]/1E9)
-    print "\tTruncated datapoints: {}".format((fEnd - fStart) - (chunk_size * chunks * fStride))
+    print "Chunk size: {} [{:.1f} GB]".format(chunk_size, chunk_size*8*E_ti.shape[1]/1E9)
+    print "\tTruncated datapoints: {}".format((tf - t0) - (chunk_size * chunks * t_stride))
     if (chunks > 1):
         raise NotImplementedError("No chunk feature yet implemented")
-    print "\tLoading data for chromophore {}...".format(site_num), ; sys.stdout.flush()
-    RAM_Datasubset = E_t_ia[fStart:fEnd:fStride,i,:]
+    print "\tLoading data...", ; sys.stdout.flush()
+    RAM_Datasubset = E_ti[t0:tf:t_stride,:]
     print "Computing covariance...", ;sys.stdout.flush()
-    Corr_i_ab[i,:,:] = np.cov(RAM_Datasubset, rowvar=0 )
+    cov = np.cov(RAM_Datasubset, rowvar=0 )
     print "Computing mean...", ;sys.stdout.flush()
-    AvgEia[i,:]  = RAM_Datasubset.sum(axis=0)
-    AvgEia[i,:]  /= numFrames
+    mean = RAM_Datasubset.sum(axis=0)
+    mean /= numFrames
     print "Done."
+    return cov, mean
 
 
 def AvgAndCorrelateSidechains(E_t_ia, fEnd = None, fStart = 0, fStride=1):

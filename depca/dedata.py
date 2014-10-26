@@ -3,7 +3,8 @@ import h5py
 import ConfigParser
 import sys
 import iopro
-import depca.sidechain_corr as sc
+import logging
+import sidechain_corr as sc
 from numbapro import vectorize
 
 def dEhdf5_init(hdf_file, hdf_dsname, open_flag, Ncoarse=0, ntimes=0, dt_ps=None, chunktime=1000):
@@ -30,9 +31,9 @@ def ParallelSub32(a,b):
     return a - b
 
 def PCARotate_hdf5(E_tj, corr, Eav_j, pca_h5ds):
-    print "Computing Modes..."
+    logging.debug( "Computing Modes...")
     eigval_n, eigvec_nj, impact_n = sc.ComputeModes(corr)
-    print "Eigenvector dimension: {}".format(eigvec_nj.shape)
+    logging.debug( "Eigenvector dimension: {}".format(eigvec_nj.shape))
     tf = E_tj.shape[0]
     t0 = 0
     Ncoarse = E_tj.shape[1]
@@ -43,37 +44,37 @@ def PCARotate_hdf5(E_tj, corr, Eav_j, pca_h5ds):
     RAM_ntimes = RAM_nfloat / Ncoarse
     RAM_nchunk = int( np.ceil((tf - t0) / float(RAM_ntimes)) )
     RAM_time_per_chunk = (tf - t0) / RAM_nchunk
-    print "Number of chunks needed: {} of {} GB each".format(RAM_nchunk, RAM_time_per_chunk * Ncoarse * 8 / GB)
+    logging.debug( "Number of chunks needed: {} of {} GB each".format(RAM_nchunk, RAM_time_per_chunk * Ncoarse * 8 / GB))
     RAM_return_times = (RAM_nchunk*RAM_time_per_chunk)
     RAM_return_tot = (RAM_nchunk*RAM_time_per_chunk) * 8 * (Ncoarse)
-    print "Disk space needed for output data: {} GB".format(RAM_return_tot / GB)
+    logging.debug( "Disk space needed for output data: {} GB".format(RAM_return_tot / GB))
     for chunk_num in xrange(RAM_nchunk):
-        print "Chunk {}:".format(chunk_num+1),;sys.stdout.flush()
+        logging.debug( "Chunk {}:".format(chunk_num+1))
         # Each chunk reads [t0_chunk, tf_chunk)
         t0_chunk = (  chunk_num   * RAM_time_per_chunk) + t0
         tf_chunk = ((chunk_num+1) * RAM_time_per_chunk) + t0
         t0_return = t0_chunk - t0
         tf_return = tf_chunk - t0
-        print "Loading chunk into RAM...",; sys.stdout.flush()
+        logging.debug( "Loading chunk into RAM...")
         RAM_E_t_ij = E_tj[t0_chunk:tf_chunk,:]
 
         # Build dE for chunk
-        print "Centering chunk with dataset's mean...",; sys.stdout.flush()
+        logging.debug( "Centering chunk with dataset's mean...")
         try:
             RAM_dE_t_j = ParallelSub32( RAM_E_t_ij, Eav_j[:])
         except TypeError:
             try:
-                print "32 bit parallel float computation failed, trying 64 bit...",;sys.stdout.flush()
+                logging.warning( "32 bit parallel float computation failed, trying 64 bit...")
                 RAM_dE_t_j = ParallelSub64( RAM_E_t_ij, Eav_j[:])
-                print "Success."
+                logging.debug( "32 bit parallel float success.")
             except TypeError as e:
-                print "64 bit failed."
+                logging.error( "64 bit failed, too.")
                 raise e
-        print "Rotating chunk...",; sys.stdout.flush()
+        logging.debug( "Rotating chunk...")
         RAM_dE_rotated = np.inner(RAM_dE_t_j, eigvec_nj.T)
-        print "Writing chunk...",; sys.stdout.flush()
+        logging.debug( "Writing chunk..." )
         pca_h5ds[t0_chunk:tf_chunk, :] = RAM_dE_rotated[:,:]
-        print 'Chunk {}  done'.format(chunk_num+1)
+        logging.debug( 'Chunk {}  done'.format(chunk_num+1))
 
 # Python recipe 577096
 def query_yes_no(question, default="yes"):
@@ -134,9 +135,9 @@ class dEData():
         self.pca_file= None
         return self
 
-    def InitSidechain_hdf(self):
+    def InitSidechain_hdf(self, force=False):
         print "Initializing Sidechain data..."
-        if not query_yes_no("Are you sure you want to re-write {}?".format(self.sc_h5file), default="no"):
+        if not force and not query_yes_no("Are you sure you want to re-write {}?".format(self.sc_h5file), default="no"):
             print "File rewrite skipped."
             return
         Nsites = self.Nsites
@@ -144,24 +145,24 @@ class dEData():
         # Load all of the CSV file paths into an array
         with open(self.csv_files) as f:
             csv_files = f.readlines()
-        print("Loading data from {} csv files...".format(len(csv_files)))
+        logging.debug("Loading data from {} csv files...".format(len(csv_files)))
         
         dset_tags = [append_index(self.time_h5tag, i) for i in xrange(1,Nsites+1)]
 
         # Load each CSV sequentially into an HDF file that is created on the first step
         first_file=True
         for i,file in enumerate(csv_files):
-            print "File #{}: {}".format(i, file.strip())
+            logging.debug( "File #{}: {}".format(i, file.strip()))
             x = iopro.loadtxt(file.strip(),delimiter=',')
             assert(format(x[0::Nsites].shape ==  x[(Nsites-1)::Nsites].shape))
             assert(len(x) % Nsites == 0)
-            print "\tX total shape: {}".format((x.shape[0]/Nsites, Nsites, len(x[0,:])))
+            logging.debug( "\tX total shape: {}".format((x.shape[0]/Nsites, Nsites, len(x[0,:]))))
             Ntimes = len(x) / Nsites
 
             # Create the HDF file if we are looping through for the first time using the sizes from the csv files
             if first_file:
                 Ncoarse = len(x[0])
-                print "\tCreating new datasets, loaded file with Ncoarse = {} and Ntimes = {}".format(Ncoarse, Ntimes)
+                logging.debug("\tCreating new datasets, loaded file with Ncoarse = {} and Ntimes = {}".format(Ncoarse, Ntimes))
                 dEhdf5_init(self.sc_h5file, None, 'w')
                 for dset_tag in dset_tags:
                     dEhdf5_init(self.sc_h5file, dset_tag, 'a', Ncoarse=Ncoarse, dt_ps=.005)
@@ -177,9 +178,9 @@ class dEData():
                     ds[oldlen:newlen,:] = x[i::Nsites,:]
                 h5_out.close()
             except:
-                print "Write failed..."
+                logging.error( "Write failed...")
                 h5_out.close()
-                print("Error: {}".format(sys.exc_info()[0]))
+                logging.error("Error: {}".format(sys.exc_info()[0]))
                 raise
     def ExamineSidechain_hdf(self):
         should_close = False
@@ -199,10 +200,11 @@ class dEData():
             self.sc_file = None
 
     def InitStats_hdf(self):
+        print "Initializing stats file..."
         self.stat_file = h5py.File(self.h5stats, 'w')
         self.stat_file.close()
         for i in xrange(1,self.Nsites+1):
-            print "Chromophore {}...".format(i)
+            logging.debug( "Chromophore {}...".format(i))
             ds_i = self.GetSidechain_hdf(i)
             corr_iab, Eavg_ia = sc.ChunkCovariance(ds_i)
             self.stat_file = h5py.File(self.h5stats, 'a')
@@ -219,6 +221,7 @@ class dEData():
             self.stat_file = None
 
     def InitPCA_hdf(self):
+        print "Initializing PCA file..."
         self.pca_file = h5py.File(self.pca_h5file, 'w')
         self.pca_file.close()
         for i in xrange(1, self.Nsites+1):

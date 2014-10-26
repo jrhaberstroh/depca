@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy.linalg as LA
 import sys
 from copy import deepcopy
+import logging
 
 def BootstrapPCA(E_ti, Cov_ia, fraction=.1, resample=10):
     return 0
@@ -14,26 +15,26 @@ def ChunkCovariance(E_ti, t0=0, tf=None, t_stride=1):
         tf = E_ti.shape[0]
     numFrames = min(tf-t0, E_ti.shape[0]-t0) / t_stride
     tf = t0 + (numFrames * t_stride)
-    print "\tComputing covariance with times {} - {}, stride of {}".format(t0, tf, t_stride)
-    print "\tArray size: ({},{})".format( E_ti.shape[0], E_ti.shape[1] )
+    logging.debug( "\tComputing covariance with times {} - {}, stride of {}".format(t0, tf, t_stride))
+    logging.debug( "\tArray size: ({},{})".format( E_ti.shape[0], E_ti.shape[1] ))
     max_floats = 4E9 / 8
     max_times = max_floats / float(E_ti.shape[1])
     dset_times = (tf-t0) / t_stride
     chunks = int(np.ceil(dset_times / max_times))
     chunk_size = dset_times/chunks
-    print "\tNumber of chunks = {},".format(chunks),
-    print "Chunk size: {} [{:.1f} GB]".format(chunk_size, chunk_size*8*E_ti.shape[1]/1E9)
-    print "\tTruncated datapoints: {}".format((tf - t0) - (chunk_size * chunks * t_stride))
+    logging.debug( "\tNumber of chunks = {},".format(chunks))
+    logging.debug( "Chunk size: {} [{:.1f} GB]".format(chunk_size, chunk_size*8*E_ti.shape[1]/1E9))
+    logging.debug( "\tTruncated datapoints: {}".format((tf - t0) - (chunk_size * chunks * t_stride)))
     if (chunks > 1):
         raise NotImplementedError("No chunk feature yet implemented")
-    print "\tLoading data...", ; sys.stdout.flush()
+    logging.debug( "\tLoading data...")
     RAM_Datasubset = E_ti[t0:tf:t_stride,:]
-    print "Computing covariance...", ;sys.stdout.flush()
+    logging.debug( "Computing covariance...")
     cov = np.cov(RAM_Datasubset, rowvar=0 )
-    print "Computing mean...", ;sys.stdout.flush()
+    logging.debug( "Computing mean...")
     mean = RAM_Datasubset.sum(axis=0)
     mean /= numFrames
-    print "Done."
+    logging.debug( "Done.")
     return cov, mean
 
 

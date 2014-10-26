@@ -10,7 +10,7 @@ import sys
     
 
 if __name__ == '__main__':
-    with dedata.dEData('./f0postProcess.cfg') as data:
+    with dedata.dEData('./conf.cfg') as data:
         #data.InitSidechain_hdf()
         #data.ExamineSidechain_hdf()
         #data.InitStats_hdf()

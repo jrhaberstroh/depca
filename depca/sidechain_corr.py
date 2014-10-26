@@ -6,9 +6,6 @@ import sys
 from copy import deepcopy
 import logging
 
-def BootstrapPCA(E_ti, Cov_ia, fraction=.1, resample=10):
-    return 0
-
 
 def ChunkCovariance(E_ti, t0=0, tf=None, t_stride=1):
     if tf == None:

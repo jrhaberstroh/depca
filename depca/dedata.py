@@ -162,7 +162,8 @@ class dEData():
             # Create the HDF file if we are looping through for the first time using the sizes from the csv files
             if first_file:
                 Ncoarse = len(x[0])
-                logging.debug("\tCreating new datasets, loaded file with Ncoarse = {} and Ntimes = {}".format(Ncoarse, Ntimes))
+                logging.debug("\tCreating new datasets, "+
+                        "loaded file with Ncoarse = {} and Ntimes = {}".format(Ncoarse, Ntimes))
                 dEhdf5_init(self.sc_h5file, None, 'w')
                 for dset_tag in dset_tags:
                     dEhdf5_init(self.sc_h5file, dset_tag, 'a', Ncoarse=Ncoarse, dt_ps=.005)
@@ -199,29 +200,51 @@ class dEData():
             self.sc_file.close()
             self.sc_file = None
 
-    def InitStats_hdf(self):
+    def InitStats_hdf(self, force = False):
+        """
+        Computes mean sidechain energy, covariance of sidechain energies, and total energy gap
+        """
         print "Initializing stats file..."
+        if not force and not query_yes_no(
+                "Are you sure you want to re-write {}?".format(self.stat_file), default="no"):
+            print "File rewrite skipped."
+            return
         self.stat_file = h5py.File(self.h5stats, 'w')
         self.stat_file.close()
         for i in xrange(1,self.Nsites+1):
             logging.debug( "Chromophore {}...".format(i))
             ds_i = self.GetSidechain_hdf(i)
             corr_iab, Eavg_ia = sc.ChunkCovariance(ds_i)
+            total_it = sc.ChunkTotal(ds_i)
             self.stat_file = h5py.File(self.h5stats, 'a')
             self.stat_file.create_dataset(append_index(self.h5corrtag,i), data=corr_iab)
             self.stat_file.create_dataset(append_index(self.h5eavtag ,i), data=Eavg_ia)
+            self.stat_file.create_dataset(append_index(self.time_h5tag ,i), data=total_it)
             self.stat_file.close()
     def GetStats_hdf(self, i):
+        """
+        Returns mean sidechain energy, covariance of sidechain energies, and total energy gap
+        """
         if not self.stat_file:
             self.stat_file = h5py.File(self.h5stats)
-        return self.stat_file[append_index(self.h5eavtag, i)], self.stat_file[append_index(self.h5corrtag,i)]
+        logging.debug("Keys in stat file: {}".format(self.stat_file.keys()))
+        return self.stat_file[append_index(self.h5eavtag, i)], \
+                self.stat_file[append_index(self.h5corrtag,i)], \
+                self.stat_file[append_index(self.time_h5tag,i)]
     def CloseStats_hdf(self):
+        """
+        Closes stats HDF file
+        """
         if self.stat_file:
             self.stat_file.close()
             self.stat_file = None
 
-    def InitPCA_hdf(self):
+    def InitPCA_hdf(self,force=False):
         print "Initializing PCA file..."
+        if not force and not query_yes_no(
+                "Are you sure you want to re-write {}?".format(self.pca_h5file), default="no"):
+            print "File rewrite skipped."
+            return
         self.pca_file = h5py.File(self.pca_h5file, 'w')
         self.pca_file.close()
         for i in xrange(1, self.Nsites+1):
@@ -230,10 +253,10 @@ class dEData():
             self.pca_file = h5py.File(self.pca_h5file,'a')
             pca_ds_i = self.pca_file.create_dataset(append_index(self.time_h5tag, i), sc_ds.shape)
             PCARotate_hdf5(sc_ds, corr_ds, Eav_ds, pca_ds_i)
-    def GetPCA_hdf(self):
+    def GetPCA_hdf(self,i):
         if not self.pca_file:
             self.pca_file = h5py.File(self.pca_h5file)
-        return self.pca_file[self.time_h5tag]
+        return self.pca_file[append_index(self.time_h5tag, i)]
     def ClosePCA_hdf(self):
         if self.pca_file:
             self.pca_file.close()

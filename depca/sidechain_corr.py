@@ -12,7 +12,7 @@ def ChunkCovariance(E_ti, t0=0, tf=None, t_stride=1):
         tf = E_ti.shape[0]
     numFrames = min(tf-t0, E_ti.shape[0]-t0) / t_stride
     tf = t0 + (numFrames * t_stride)
-    logging.debug( "\tComputing covariance with times {} - {}, stride of {}".format(t0, tf, t_stride))
+    logging.debug( "Computing covariance with times {} - {}, stride of {}".format(t0, tf, t_stride))
     logging.debug( "\tArray size: ({},{})".format( E_ti.shape[0], E_ti.shape[1] ))
     max_floats = 4E9 / 8
     max_times = max_floats / float(E_ti.shape[1])
@@ -20,20 +20,37 @@ def ChunkCovariance(E_ti, t0=0, tf=None, t_stride=1):
     chunks = int(np.ceil(dset_times / max_times))
     chunk_size = dset_times/chunks
     logging.debug( "\tNumber of chunks = {},".format(chunks))
-    logging.debug( "Chunk size: {} [{:.1f} GB]".format(chunk_size, chunk_size*8*E_ti.shape[1]/1E9))
+    logging.debug( "\tChunk size: {} [{:.1f} GB]".format(chunk_size, chunk_size*8*E_ti.shape[1]/1E9))
     logging.debug( "\tTruncated datapoints: {}".format((tf - t0) - (chunk_size * chunks * t_stride)))
     if (chunks > 1):
         raise NotImplementedError("No chunk feature yet implemented")
     logging.debug( "\tLoading data...")
     RAM_Datasubset = E_ti[t0:tf:t_stride,:]
-    logging.debug( "Computing covariance...")
+    logging.debug( "\tComputing covariance...")
     cov = np.cov(RAM_Datasubset, rowvar=0 )
-    logging.debug( "Computing mean...")
+    logging.debug( "\tComputing mean...")
     mean = RAM_Datasubset.sum(axis=0)
     mean /= numFrames
-    logging.debug( "Done.")
+    logging.debug( "\tDone.")
     return cov, mean
 
+def ChunkTotal(E_ti):
+    logging.debug( "Computing Total energy gap")
+    data_max = 4E9
+    max_floats = data_max / 8
+    max_times = max_floats / float(E_ti.shape[1])
+    dset_times = E_ti.shape[0]
+    chunks = int(np.ceil(dset_times / max_times))
+    chunk_size = dset_times/chunks
+    logging.debug( "\tNumber of chunks = {},".format(chunks))
+    logging.debug( "\tChunk size: {} [{:.1f} GB]".format(chunk_size, chunk_size*8*E_ti.shape[1]/1E9))
+    logging.debug( "\tTruncated datapoints: {}".format((E_ti.shape[0]) - (chunk_size * chunks)))
+    total_t = np.zeros(dset_times)
+    for chunk in xrange(chunks):
+        t0 = chunk * chunk_size
+        tf = t0 + chunk_size
+        total_t[t0:tf] = np.sum(E_ti[t0:tf,:], axis=1)
+    return total_t
 
 def AvgAndCorrelateSidechains(E_t_ia, fEnd = None, fStart = 0, fStride=1):
     if not fEnd:

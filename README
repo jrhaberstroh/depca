@@ -9,6 +9,9 @@ It could be modified for other contexts. More abstractly, it allows for the comp
 of PCA on large timeseries data.
 
 
+I. The Modules 
+
+
 depca/dedata: 
 Module to control the data files. Operates with configuration file as specified.
     Configuration file: [ conf.cfg ]
@@ -29,3 +32,15 @@ Module to control the data files. Operates with configuration file as specified.
     h5eavtag    : hdf5 dataset name (*)
     
     (*) Changing these may require a rebuild of h5file, h5stats, or pcafile
+
+
+II. The Utility Scripts
+
+conf.cfg:
+    Configuration file, should be specified for local system
+
+process.py:
+    Initialize data with configuration from conf.cfg
+
+visualize.py:
+    Basic visualization with configuration from conf.cfg

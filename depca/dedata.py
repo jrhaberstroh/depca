@@ -206,7 +206,7 @@ class dEData():
         """
         print "Initializing stats file..."
         if not force and not query_yes_no(
-                "Are you sure you want to re-write {}?".format(self.stat_file), default="no"):
+                "Are you sure you want to re-write {}?".format(self.h5stats), default="no"):
             print "File rewrite skipped."
             return
         self.stat_file = h5py.File(self.h5stats, 'w')

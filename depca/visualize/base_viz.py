@@ -83,7 +83,7 @@ def Plot1DHist(entries, residual = None, displace_by = 1.0, plottype = 'display'
     plt.ylabel('-ln(p)')
     DisplayPlots(plottype, fname)
 
-def PlotTimeseries(dDEmodes_nt, N = None, do_sum = False, plottype='display', legend=[], fname="timeseries"):
+def PlotTimeseries(dDEmodes_nt, dt=None, N = None, do_sum = False, plottype='display', legend=[], fname="timeseries"):
     timeplottag = ""
     plots = []
     if len(dDEmodes_nt.shape) == 1:

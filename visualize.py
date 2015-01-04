@@ -4,6 +4,7 @@ Several core examples of plotting for the depca module
 
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import depca.visualize.base_viz as viz
 import depca.dedata as dedata
 import depca.robust as robust
@@ -50,15 +51,26 @@ def plotgapdist():
         for i in xrange(1,8):
             legend = None
             _,_,gap_t = data.GetStats_hdf(i)
-            subsamples = robust.GetSubsamples(gap_t[:], .05, 10)
+            #subsamples = robust.GetSubsamples(gap_t[:], .05, 10)
+            
             #viz.Plot1DHist(subsamples, plottype = 'png', 
             #    fname = '/home/jhaberstroh/Dropbox/Physics' +
             #    '/subgroup/2014-10-28/FMO{}_gap_hist'.format(i), 
             #    legend=legend, displace_by=0.0, parabola=True)
-            viz.PlotTimeseries(gap_t, 10000, plottype='png',
-                fname = '/home/jhaberstroh/Dropbox/Physics' +
-                '/subgroup/2014-10-28/FMO{}_gap_time'.format(i) )
-
+            print len(gap_t)
+            window = 4000
+            roll_dt = np.zeros(len(gap_t) / window)
+            for time in xrange(len(roll_dt)):
+                roll_dt[time] = np.mean(gap_t[time*window:(time+1)*window])
+            roll_dt -= np.mean(roll_dt)
+            times = window*.005 * np.arange(0,len(roll_dt)) * .001 
+            plt.plot(times, roll_dt)
+            plt.title("Rolling average for chromophore {}, window of {}ps".format(i, window*.005))
+            plt.xlabel("Time, ns")
+            plt.ylabel("Change in Energy Gap, cm-1")
+            plt.savefig('/home/jhaberstroh/Dropbox/Physics/subgroup' +
+                    '/2014-10-28/FMO/FMO{}_roll.png'.format(i))
+            plt.clf()
 
 
 

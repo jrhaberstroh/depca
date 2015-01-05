@@ -3,8 +3,13 @@ import h5py
 import numpy as np
 import numpy.linalg as LA
 import sys
-from numbapro import vectorize
-from numbapro import guvectorize
+
+HAS_NUMBA=True
+try:
+    from numbapro import vectorize
+    from numbapro import guvectorize
+except ImportError:
+    HAS_NUMBA=False
 
 
 
@@ -91,27 +96,30 @@ def ApplyPCA_hdf5(E_t_ij, E_avg_ij, modes_inj, hdf_file, hdf_dsname, site, creat
             print "Loading chunk into RAM...",; sys.stdout.flush()
             RAM_E_t_ij = E_t_ij[t0_chunk:tf_chunk,site,:]
 
-            @vectorize(['float64(float64,float64)'], target='cpu')
-            def ParallelSub64(a,b):
-                return a - b
-
-            @vectorize(['float32(float32,float32)'], target='cpu')
-            def ParallelSub32(a,b):
-                return a - b
-
             # Build dE for chunk
             print "Computing chunk dE...",; sys.stdout.flush()
 
-            try:
-                RAM_dE_t_j = ParallelSub32( RAM_E_t_ij, E_avg_ij[site,:])
-            except TypeError:
+            if HAS_NUMBA:
+                @vectorize(['float64(float64,float64)'], target='cpu')
+                def ParallelSub64(a,b):
+                    return a - b
+
+                @vectorize(['float32(float32,float32)'], target='cpu')
+                def ParallelSub32(a,b):
+                    return a - b
+
                 try:
-                    print "32 bit parallel float computation failed, trying 64 bit...",;sys.stdout.flush()
-                    RAM_dE_t_j = ParallelSub64( RAM_E_t_ij, E_avg_ij[site,:])
-                    print "Success."
-                except TypeError as e:
-                    print "64 bit failed."
-                    raise e
+                    RAM_dE_t_j = ParallelSub32( RAM_E_t_ij, E_avg_ij[site,:])
+                except TypeError:
+                    try:
+                        print "32 bit parallel float computation failed, trying 64 bit...",;sys.stdout.flush()
+                        RAM_dE_t_j = ParallelSub64( RAM_E_t_ij, E_avg_ij[site,:])
+                        print "Success."
+                    except TypeError as e:
+                        print "64 bit failed."
+                        raise e
+            else:
+                RAM_dE_t_j = RAM_E_t_ij - E_avg_ij[site,:]
                 
             
             print "Rotating chunk...",; sys.stdout.flush()

@@ -2,10 +2,23 @@ import numpy as np
 import h5py
 import ConfigParser
 import sys
-import iopro
 import logging
 import sidechain_corr as sc
-from numbapro import vectorize
+
+HAS_IOPRO = True
+HAS_NUMBA = True
+try:
+    import iopro
+    logging.debug("Loaded iopro successfully")
+except ImportError:
+    HAS_IOPRO=False
+    logging.debug("Failed to load iopro")
+try:
+    from numbapro import vectorize
+    logging.debug("Loaded numbapro successfully")
+except ImportError:
+    HAS_NUMBA=False
+    logging.debug("Failed to load numbapro")
 
 def dEhdf5_init(hdf_file, hdf_dsname, open_flag, Ncoarse=0, ntimes=0, dt_ps=None, chunktime=1000):
     with h5py.File(hdf_file,open_flag) as h5_out:
@@ -23,12 +36,13 @@ def dEhdf5_init(hdf_file, hdf_dsname, open_flag, Ncoarse=0, ntimes=0, dt_ps=None
             ds.attrs['dt_unit'] = "picoseconds"
             ds.attrs['dt'] = dt_ps
 
-@vectorize(['float64(float64,float64)'], target='cpu')
-def ParallelSub64(a,b):
-    return a - b
-@vectorize(['float32(float32,float32)'], target='cpu')
-def ParallelSub32(a,b):
-    return a - b
+if HAS_NUMBA:
+    @vectorize(['float64(float64,float64)'], target='cpu')
+    def ParallelSub64(a,b):
+        return a - b
+    @vectorize(['float32(float32,float32)'], target='cpu')
+    def ParallelSub32(a,b):
+        return a - b
 
 def PCARotate_hdf5(E_tj, corr, Eav_j, pca_h5ds):
     logging.debug( "Computing Modes...")
@@ -60,16 +74,19 @@ def PCARotate_hdf5(E_tj, corr, Eav_j, pca_h5ds):
 
         # Build dE for chunk
         logging.debug( "Centering chunk with dataset's mean...")
-        try:
-            RAM_dE_t_j = ParallelSub32( RAM_E_t_ij, Eav_j[:])
-        except TypeError:
+        if HAS_NUMBA:
             try:
-                logging.warning( "32 bit parallel float computation failed, trying 64 bit...")
-                RAM_dE_t_j = ParallelSub64( RAM_E_t_ij, Eav_j[:])
-                logging.debug( "32 bit parallel float success.")
-            except TypeError as e:
-                logging.error( "64 bit failed, too.")
-                raise e
+                RAM_dE_t_j = ParallelSub32( RAM_E_t_ij, Eav_j[:])
+            except TypeError:
+                try:
+                    logging.warning( "32 bit parallel float computation failed, trying 64 bit...")
+                    RAM_dE_t_j = ParallelSub64( RAM_E_t_ij, Eav_j[:])
+                    logging.debug( "32 bit parallel float success.")
+                except TypeError as e:
+                    logging.error( "64 bit failed, too.")
+                    raise e
+        else:
+            RAM_dE_t_j = RAM_E_t_ij - Eav_j[:]
         logging.debug( "Rotating chunk...")
         RAM_dE_rotated = np.inner(RAM_dE_t_j, eigvec_nj.T)
         logging.debug( "Writing chunk..." )
@@ -153,7 +170,10 @@ class dEData():
         first_file=True
         for i,file in enumerate(csv_files):
             logging.debug( "File #{}: {}".format(i, file.strip()))
-            x = iopro.loadtxt(file.strip(),delimiter=',')
+            if HAS_IOPRO:
+                x = iopro.loadtxt(file.strip(),delimiter=',')
+            else:
+                x = numpy.loadtxt(file.strip(),delimiter=',')
             assert(format(x[0::Nsites].shape ==  x[(Nsites-1)::Nsites].shape))
             assert(len(x) % Nsites == 0)
             logging.debug( "\tX total shape: {}".format((x.shape[0]/Nsites, Nsites, len(x[0,:]))))

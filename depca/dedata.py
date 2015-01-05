@@ -131,7 +131,7 @@ def append_index(dsname, index):
 
 
 class dEData():
-    def __init__(self, config = './f0postProcess.cfg'):
+    def __init__(self, config = './f0postProcess.cfg', interactive=True):
         with open(config) as fp:
             config = ConfigParser.RawConfigParser()
             config.readfp(fp)
@@ -143,9 +143,10 @@ class dEData():
             self.pca_h5file = config.get('sidechain','pcafile')
             self.Nsites = config.getint('sidechain','Nsites')
             self.csv_files = config.get('sidechain','csvfiles')
-            self.sc_file = None
-            self.stat_file = None
-            self.pca_file= None
+        self.sc_file = None
+        self.stat_file = None
+        self.pca_file= None
+        self.interactive=interactive
     def __enter__(self):
         self.sc_file = None
         self.stat_file = None
@@ -154,9 +155,10 @@ class dEData():
 
     def InitSidechain_hdf(self, force=False):
         print "Initializing Sidechain data..."
-        if not force and not query_yes_no("Are you sure you want to re-write {}?".format(self.sc_h5file), default="no"):
-            print "File rewrite skipped."
-            return
+	if self.interactive:
+            if not force and not query_yes_no("Are you sure you want to re-write {}?".format(self.sc_h5file), default="no"):
+                print "File rewrite skipped."
+                return
         Nsites = self.Nsites
 
         # Load all of the CSV file paths into an array
@@ -173,7 +175,7 @@ class dEData():
             if HAS_IOPRO:
                 x = iopro.loadtxt(file.strip(),delimiter=',')
             else:
-                x = numpy.loadtxt(file.strip(),delimiter=',')
+                x = np.loadtxt(file.strip(),delimiter=',')
             assert(format(x[0::Nsites].shape ==  x[(Nsites-1)::Nsites].shape))
             assert(len(x) % Nsites == 0)
             logging.debug( "\tX total shape: {}".format((x.shape[0]/Nsites, Nsites, len(x[0,:]))))
@@ -225,10 +227,11 @@ class dEData():
         Computes mean sidechain energy, covariance of sidechain energies, and total energy gap
         """
         print "Initializing stats file..."
-        if not force and not query_yes_no(
-                "Are you sure you want to re-write {}?".format(self.h5stats), default="no"):
-            print "File rewrite skipped."
-            return
+        if self.interactive:
+            if not force and not query_yes_no(
+                    "Are you sure you want to re-write {}?".format(self.h5stats), default="no"):
+                print "File rewrite skipped."
+                return
         self.stat_file = h5py.File(self.h5stats, 'w')
         self.stat_file.close()
         for i in xrange(1,self.Nsites+1):
@@ -261,10 +264,11 @@ class dEData():
 
     def InitPCA_hdf(self,force=False):
         print "Initializing PCA file..."
-        if not force and not query_yes_no(
-                "Are you sure you want to re-write {}?".format(self.pca_h5file), default="no"):
-            print "File rewrite skipped."
-            return
+        if self.interactive:
+            if not force and not query_yes_no(
+                    "Are you sure you want to re-write {}?".format(self.pca_h5file), default="no"):
+                print "File rewrite skipped."
+                return
         self.pca_file = h5py.File(self.pca_h5file, 'w')
         self.pca_file.close()
         for i in xrange(1, self.Nsites+1):

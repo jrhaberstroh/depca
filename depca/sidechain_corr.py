@@ -1,6 +1,5 @@
 import numpy as np
 import h5py
-import matplotlib.pyplot as plt
 import numpy.linalg as LA
 import sys
 from copy import deepcopy

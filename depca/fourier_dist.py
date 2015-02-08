@@ -60,7 +60,7 @@ def eval_fft(data,num,end):
     return np.array(rcoeffs)
 
 
-def fourier_chi(data, nums, end):
+def fourier_chi(data, nums, end, eval_method = eval_fourier):
     """
     Evaluates the chi-square value of Fourier Coefficient distributions for 
     specified window sizes. Each window size will result in one chi-square 
@@ -76,9 +76,13 @@ def fourier_chi(data, nums, end):
             distributions for each window size. Note that there are as many chi-square
             values in the return array as there are elements in 'nums'
     """
+    if (np.array(nums) <= 1).any():
+        raise ValueError("Chi squared can only be computed with samples " +
+                "per chunk > 2")
+
     chisquared = []
     for num in nums:
-        a = eval_fourier(data, num, end)
+        a = eval_method(data, num, end)
         chisquared.append(chisq_hist(a))
     return np.array(chisquared)
 
@@ -103,7 +107,7 @@ def divide_trajectory(trajectory, pts_per_chunk):
     return expected_part
 
 
-def chisq_hist(data):
+def chisq_hist(data, plot = False):
     """
     Evaluates the chi-square value associated with a given distribution by comparing the 
     distribution to its Gaussian envelope.
@@ -118,12 +122,14 @@ def chisq_hist(data):
 
     N = len(data)
     number_bins = 100
-    unnormed, bin_loc, x = plt.hist(data, number_bins, normed=False)
+    if plot:
+        plt.hist(data, number_bins, normed=False)
+        plt.show()
+    unnormed, bin_loc = np.histogram(data, number_bins, normed=False)
     bin_loc = adjust_bins(bin_loc)
     expect = calc_expect(data, bin_loc, number_bins)
     error = np.sqrt(unnormed)
     chisq = calc_chisq(unnormed, expect, error)
-    plt.clf()
     return chisq
 
 
@@ -190,8 +196,8 @@ def diff_factor(data, number_bins):
         a float number that once multiplied by the normalized distribution will
             result in the unnomalized distribution. 
     """
-    normed, bl0, x = plt.hist(data, number_bins, normed=True)
-    unnormed, bl1, y = plt.hist(data, number_bins, normed=False)
+    normed, bl0   = np.histogram(data, number_bins, normed=True)
+    unnormed, bl1 = np.histogram(data, number_bins, normed=False)
     for i in range(number_bins):
         if unnormed[i] != 0:
             return unnormed[i] / normed[i]

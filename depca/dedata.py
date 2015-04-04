@@ -173,9 +173,9 @@ class dEData():
         for i,file in enumerate(csv_files):
             logging.debug( "File #{}: {}".format(i, file.strip()))
             if HAS_IOPRO:
-                x = iopro.loadtxt(file.strip(),delimiter=',')
+                x = iopro.loadtxt(file.strip())
             else:
-                x = np.loadtxt(file.strip(),delimiter=',')
+                x = np.loadtxt(file.strip())
             assert(format(x[0::Nsites].shape ==  x[(Nsites-1)::Nsites].shape))
             assert(len(x) % Nsites == 0)
             logging.debug( "\tX total shape: {}".format((x.shape[0]/Nsites, Nsites, len(x[0,:]))))

@@ -60,7 +60,7 @@ def eval_fft(data,num,end):
     return np.array(rcoeffs)
 
 
-def fourier_chi(data, nums, end, eval_method = eval_fourier):
+def fourier_chi(data, nums, end, eval_method = eval_fourier, bins=100, plot=False):
     """
     Evaluates the chi-square value of Fourier Coefficient distributions for 
     specified window sizes. Each window size will result in one chi-square 
@@ -83,7 +83,7 @@ def fourier_chi(data, nums, end, eval_method = eval_fourier):
     chisquared = []
     for num in nums:
         a = eval_method(data, num, end)
-        chisquared.append(chisq_hist(a))
+        chisquared.append(chisq_hist(a, bins, plot))
     return np.array(chisquared)
 
 
@@ -107,7 +107,7 @@ def divide_trajectory(trajectory, pts_per_chunk):
     return expected_part
 
 
-def chisq_hist(data, plot = False):
+def chisq_hist(data, number_bins=100, plot = False):
     """
     Evaluates the chi-square value associated with a given distribution by comparing the 
     distribution to its Gaussian envelope.
@@ -121,9 +121,8 @@ def chisq_hist(data, plot = False):
     """
 
     N = len(data)
-    number_bins = 100
     if plot:
-        plt.hist(data, number_bins, normed=False)
+        plt.hist(data, number_bins, normed=False, log=True)
         plt.show()
     unnormed, bin_loc = np.histogram(data, number_bins, normed=False)
     bin_loc = adjust_bins(bin_loc)
